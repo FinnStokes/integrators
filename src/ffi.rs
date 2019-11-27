@@ -13,7 +13,7 @@ use ::traits::{IntegrandInput, IntegrandOutput};
 use ::Real;
 
 pub struct LandingPad<A, B, F: FnMut(A) -> B> {
-    err: Option<Box<Any + Send + 'static>>,
+    err: Option<Box<dyn Any + Send + 'static>>,
     fun: F,
     a: PhantomData<A>,
     b: PhantomData<B>,
@@ -36,7 +36,7 @@ impl<A: IntegrandInput, B: IntegrandOutput, F: FnMut(A) -> B> LandingPad<A, B, F
     /// the `LandingPad` will return a reference to the result of the earlier
     /// panic. In other words, the integrand will only be allowed to panic
     /// once.
-    pub fn try_call(&mut self, args: &[Real], output: &mut [Real]) -> Result<(), &(Any + Send + 'static)> {
+    pub fn try_call(&mut self, args: &[Real], output: &mut [Real]) -> Result<(), &(dyn Any + Send + 'static)> {
         if self.err.is_some() {
             Err(self.err.as_ref().expect("just said it is some"))
         } else {
@@ -70,7 +70,7 @@ impl<A: IntegrandInput, B: IntegrandOutput, F: FnMut(A) -> B> LandingPad<A, B, F
         }
     }
 
-    pub fn finish(self) -> Option<Box<Any + Send + 'static>> {
+    pub fn finish(self) -> Option<Box<dyn Any + Send + 'static>> {
         self.err
     }
 

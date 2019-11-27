@@ -214,7 +214,7 @@ impl fmt::Display for GSLIntegrationError {
 }
 
 impl error::Error for GSLIntegrationError {
-    fn source(&self) -> Option<&(error::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self {
             &GSLIntegrationError::GSLError(ref err) => Some(err),
             _ => None,
