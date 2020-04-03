@@ -34,9 +34,9 @@
 //! ```
 
 use std::{error, fmt, marker, mem};
-use std::convert::{From, Into};
+use std::convert::{From, Into, TryFrom};
 use std::ffi::CStr;
-use std::os::raw::{c_void, c_int};
+use std::os::raw::{c_void, c_int, c_uint};
 
 use super::bindings;
 use super::ffi::LandingPad;
@@ -60,6 +60,9 @@ pub use self::qagp::QAGP;
 
 mod qagi;
 pub use self::qagi::{QAGI, QAGIU, QAGIL};
+
+mod qawf;
+pub use self::qawf::QAWF;
 
 unsafe extern "C"
 fn gsl_integrand_fn<A, B, F>(x: Real, params: *mut c_void) -> Real
@@ -265,6 +268,113 @@ impl Drop for GSLIntegrationWorkspace {
     fn drop(&mut self) {
         unsafe {
             bindings::gsl_integration_workspace_free(self.wkspc)
+        }
+    }
+}
+
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub enum GSLIntegrationQAWOEnum {
+    Sine,
+    Cosine,
+}
+
+impl fmt::Display for GSLIntegrationQAWOEnum {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        use self::GSLIntegrationQAWOEnum::*;
+        match self {
+            Sine => write!(fmt, "sin"),
+            Cosine => write!(fmt, "cos"),
+        }
+    }
+}
+
+impl TryFrom<c_uint> for GSLIntegrationQAWOEnum {
+    type Error = &'static str;
+
+    fn try_from(n: c_uint) -> Result<Self, Self::Error> {
+        use self::GSLIntegrationQAWOEnum::*;
+        match n {
+            bindings::gsl_integration_qawo_enum_GSL_INTEG_COSINE => Ok(Cosine),
+            bindings::gsl_integration_qawo_enum_GSL_INTEG_SINE => Ok(Sine),
+            _ => Err("Invalid enum value for GSLIntegrationQAWO")
+        }
+    }
+}
+
+impl Into<c_uint> for GSLIntegrationQAWOEnum {
+    fn into(self) -> c_uint {
+        use self::GSLIntegrationQAWOEnum::*;
+        match self {
+            Cosine => bindings::gsl_integration_qawo_enum_GSL_INTEG_COSINE,
+            Sine => bindings::gsl_integration_qawo_enum_GSL_INTEG_SINE,
+        }
+    }
+}
+struct GSLIntegrationQAWOTable {
+    pub(crate) nintervals: usize,
+    pub(crate) interval_length: Real,
+    pub(crate) omega: Real,
+    pub(crate) sine: GSLIntegrationQAWOEnum,
+    table: *mut bindings::gsl_integration_qawo_table
+}
+
+impl fmt::Debug for GSLIntegrationQAWOTable {
+    fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+        fmt.debug_struct("GSLIntegrationQAWOTable")
+           .field("nintervals", &self.nintervals)
+           .field("interval_length", &self.interval_length)
+           .field("omega", &self.omega)
+           .field("sine", &self.sine)
+           .finish()
+    }
+}
+
+impl Clone for GSLIntegrationQAWOTable {
+    fn clone(&self) -> Self {
+        GSLIntegrationQAWOTable::new(self.nintervals, self.interval_length, self.omega, self.sine)
+    }
+}
+
+impl GSLIntegrationQAWOTable {
+    pub(crate) fn new(n: usize, interval_length: Real, omega: Real, sine: GSLIntegrationQAWOEnum) -> Self {
+        GSLIntegrationQAWOTable {
+            // TODO: Check for null-pointer
+            table: unsafe {
+                bindings::gsl_integration_qawo_table_alloc(
+                    omega, interval_length, sine.into(), n,
+                )
+            },
+            nintervals: n,
+            interval_length, omega, sine,
+        }
+    }
+
+    pub(crate) fn with_sin(self, omega: Real) -> Self {
+        GSLIntegrationQAWOTable::new(
+            self.nintervals, self.interval_length,
+            omega, GSLIntegrationQAWOEnum::Sine,
+        )
+    }
+
+    pub(crate) fn with_cos(self, omega: Real) -> Self {
+        GSLIntegrationQAWOTable::new(
+            self.nintervals, self.interval_length,
+            omega, GSLIntegrationQAWOEnum::Cosine,
+        )
+    }
+
+    pub(crate) fn with_nintervals(self, n: usize) -> Self {
+        GSLIntegrationQAWOTable::new(
+            n, self.interval_length,
+            self.omega, self.sine,
+        )
+    }
+}
+
+impl Drop for GSLIntegrationQAWOTable {
+    fn drop(&mut self) {
+        unsafe {
+            bindings::gsl_integration_qawo_table_free(self.table)
         }
     }
 }
